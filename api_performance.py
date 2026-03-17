@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Copyright (c) 2024 LlmTestTools - https://github.com/344303947/LlmTestTools
+# MIT License - Copyright (c) 2025 LlmTestTools
+# https://github.com/344303947/LlmTestTools
 
 import requests
 import time

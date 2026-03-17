@@ -123,4 +123,6 @@ READ_TIMEOUT = 200                                         # 读取超时 (秒)
 
 ## License
 
+MIT License - see [LICENSE](LICENSE) file for details.
+
 Copyright (c) 2025 LlmTestTools
