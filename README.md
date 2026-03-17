@@ -24,6 +24,14 @@ pip install requests tiktoken
 python api_performance.py [input_min] [input_max] [model_name]
 ```
 
+### 直接执行
+
+脚本已设置执行权限，可直接运行：
+
+```bash
+./api_performance.py [input_min] [input_max] [model_name]
+```
+
 ### 参数说明
 
 | 参数 | 必填 | 默认值 | 说明 |
