@@ -27,7 +27,7 @@ python api_performance.py [input_min] [input_max] [model_name]
 |------|------|--------|------|
 | input_min | 可选 | 128 | 最小输入 token 数 |
 | input_max | 可选 | 4096 | 最大输入 token 数 |
-| model_name | 可选 | Qwen3-Next-80B-A3B-Instruct | 要测试的模型名称 |
+| model_name | 可选 | Qwen3.5-122B-A10B | 要测试的模型名称 |
 
 ### 示例
 
@@ -36,7 +36,7 @@ python api_performance.py [input_min] [input_max] [model_name]
 python api_performance.py
 
 # 指定输入范围和模型
-python api_performance.py 128 64000 Qwen3-Next-80B-A3B-Instruct
+python api_performance.py 128 64000 Qwen3.5-122B-A10B
 ```
 
 ## 输出指标

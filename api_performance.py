@@ -13,7 +13,7 @@ from typing import List, Dict, Optional, Generator
 # ==================== 配置区 ====================
 API_URL = "http://192.168.0.32:9070/v1/chat/completions"
 API_KEY = "sk_344303"
-MODEL_NAME = "Qwen3-Next-80B-A3B-Instruct"
+MODEL_NAME = "Qwen3.5-122B-A10B"
 INPUT_MIN_LEN_DEFAULT = 128
 INPUT_MAX_LEN_DEFAULT = 4096
 OUTPUT_LEN = 128
