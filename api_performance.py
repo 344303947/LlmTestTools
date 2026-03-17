@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Copyright (c) 2024 LlmTestTools - https://github.com/344303947/LlmTestTools
 
 import requests
 import time
@@ -10,26 +11,23 @@ import tiktoken
 from datetime import datetime
 from typing import List, Dict, Optional, Generator
 
-# ==================== 配置区 ====================
 API_URL = "http://192.168.0.32:9070/v1/chat/completions"
 API_KEY = "sk_344303"
 MODEL_NAME = "Qwen3.5-122B-A10B"
 INPUT_MIN_LEN_DEFAULT = 128
 INPUT_MAX_LEN_DEFAULT = 4096
 OUTPUT_LEN = 128
-CONTEXT_LEN = 16  # 模型上下文长度，仅作说明
-CONNECT_TIMEOUT = 180  # 连接超时（秒）
-READ_TIMEOUT = 200  # 读取超时（秒）
+CONTEXT_LEN = 16
+CONNECT_TIMEOUT = 180
+READ_TIMEOUT = 200
 
-# ==================== 提示词与词表 ====================
 FIXED_PROMPT = "\nRepeat the above content one hundred times."
 WORDS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
 
-# ==================== Tokenizer ====================
 try:
     enc = tiktoken.encoding_for_model("gpt-4")
 except KeyError:
-    enc = tiktoken.get_encoding("cl100k_base")  # fallback
+    enc = tiktoken.get_encoding("cl100k_base")
 
 
 def count_tokens(text: str) -> int:
@@ -99,36 +97,38 @@ def test_stream_prompt(input_len: int, output_len: int) -> Optional[Dict]:
     try:
         prompt = generate_user_prompt(input_len)
     except Exception as e:
-        print(f"[ERROR] 生成 prompt 失败: {str(e)}")
+        print(f"[ERROR] 生成 prompt 失败：{str(e)}")
         return None
 
     try:
         request_start = time.time()
-        first_token_time = None
-        last_token_time = None
+        first_token_time: float | None = None
+        last_token_time: float | None = None
         token_count = 0
 
         for chunk in stream_response(prompt, output_len):
             if "choices" in chunk and len(chunk["choices"]) > 0:
                 delta = chunk["choices"][0].get("delta", {})
-                if "content" in delta and delta["content"] is not None:
+                content = delta.get("content") or delta.get("reasoning")
+                if content:
                     token_count += 1
 
                     if first_token_time is None:
                         first_token_time = time.time()
                     last_token_time = time.time()
 
-        if token_count == 0:
-            return None
+        if token_count == 0 or first_token_time is None or last_token_time is None:
+            raise Exception("No tokens received")
 
         ttft_ms = (first_token_time - request_start) * 1000
         decode_duration_ms = (last_token_time - first_token_time) * 1000
         total_duration_ms = (last_token_time - request_start) * 1000
 
         prefill_speed = input_len / (ttft_ms / 1000) if ttft_ms > 0 else 0
-        decode_speed = (
-            token_count / (decode_duration_ms / 1000) if decode_duration_ms > 0 else 0
+        decode_duration_sec = (
+            max(decode_duration_ms / 1000, 0.01) if decode_duration_ms > 0 else 0.01
         )
+        decode_speed = token_count / decode_duration_sec
 
         return {
             "input_len": input_len,
@@ -158,17 +158,34 @@ def generate_test_points(min_len: int, max_len: int) -> List[int]:
 
 
 def main():
+    global MODEL_NAME
+
     print("\n=== LLM API 性能测试 ===")
     print(f"接口：{API_URL}")
-    print(f"模型：{MODEL_NAME}")
     print(f"输出长度：{OUTPUT_LEN} tokens")
     print("=" * 80)
     print(f"🔗 项目地址：https://github.com/344303947/LlmTestTools")
-    print(f"⭐ 如果有帮助，请给个 Star!")
     print("=" * 80)
 
-    # ========== 命令行参数 ==========
-    if len(sys.argv) >= 3:
+    INPUT_MIN_LEN = INPUT_MIN_LEN_DEFAULT
+    INPUT_MAX_LEN = INPUT_MAX_LEN_DEFAULT
+    MODEL_NAME = "Qwen3.5-122B-A10B"
+
+    if len(sys.argv) >= 4:
+        try:
+            INPUT_MIN_LEN = int(sys.argv[1])
+            INPUT_MAX_LEN = int(sys.argv[2])
+            MODEL_NAME = sys.argv[3]
+            if INPUT_MIN_LEN < 1:
+                raise ValueError("输入长度必须 ≥ 1")
+            if INPUT_MAX_LEN < INPUT_MIN_LEN:
+                raise ValueError("最大长度不能小于最小长度")
+            print(f"输入范围：[{INPUT_MIN_LEN}, {INPUT_MAX_LEN}] tokens (命令行参数)")
+            print(f"模型：{MODEL_NAME} (命令行参数)")
+        except ValueError as e:
+            print(f"参数错误：{e}，使用默认值")
+            print(f"模型：{MODEL_NAME} (默认)")
+    elif len(sys.argv) == 3:
         try:
             INPUT_MIN_LEN = int(sys.argv[1])
             INPUT_MAX_LEN = int(sys.argv[2])
@@ -176,22 +193,19 @@ def main():
                 raise ValueError("输入长度必须 ≥ 1")
             if INPUT_MAX_LEN < INPUT_MIN_LEN:
                 raise ValueError("最大长度不能小于最小长度")
-            print(f"输入范围: [{INPUT_MIN_LEN}, {INPUT_MAX_LEN}] tokens (命令行参数)")
+            print(f"输入范围：[{INPUT_MIN_LEN}, {INPUT_MAX_LEN}] tokens (命令行参数)")
+            print(f"模型：{MODEL_NAME} (默认)")
         except ValueError as e:
-            print(f"参数错误: {e}，使用默认值")
-            INPUT_MIN_LEN = INPUT_MIN_LEN_DEFAULT
-            INPUT_MAX_LEN = INPUT_MAX_LEN_DEFAULT
+            print(f"参数错误：{e}，使用默认值")
+            print(f"模型：{MODEL_NAME} (默认)")
     else:
-        INPUT_MIN_LEN = INPUT_MIN_LEN_DEFAULT
-        INPUT_MAX_LEN = INPUT_MAX_LEN_DEFAULT
-        print(f"输入范围: [{INPUT_MIN_LEN}, {INPUT_MAX_LEN}] tokens (默认)")
+        print(f"输入范围：[{INPUT_MIN_LEN}, {INPUT_MAX_LEN}] tokens (默认)")
+        print(f"模型：{MODEL_NAME} (默认)")
 
-    # 生成测试点
     test_points = generate_test_points(INPUT_MIN_LEN, INPUT_MAX_LEN)
-    print(f"测试点: {test_points}")
+    print(f"测试点：{test_points}")
     print("=" * 80)
 
-    # ========== 表头 ==========
     headers = ["输入长度", "预填充(t/s)", "输出(t/s)", "TTFT(ms)", "输出延迟(ms)"]
     widths = [10, 14, 12, 12, 14]
 
@@ -220,60 +234,24 @@ def main():
             results.append(result)
         else:
             print("FAILED")
+            if len(results) == 0 and idx == 1:
+                print(f"  ⚠️  建议检查模型名称 '{MODEL_NAME}' 是否正确")
 
     print("-" * 80)
-    print(f"测试完成: {len(results)}/{total_tests} 成功")
+    print(f"测试完成：{len(results)}/{total_tests} 成功")
 
-    # ========== 统计摘要 ==========
     if results:
         avg_ttft = sum(r["prefill_ms"] for r in results) / len(results)
         avg_decode_rate = sum(r["decode_speed"] for r in results) / len(results)
 
         print(f"\n统计摘要:")
         print(f"  平均 TTFT: {avg_ttft:.2f} ms")
-        print(f"  平均输出速度: {avg_decode_rate:.2f} t/s")
+        print(f"  平均输出速度：{avg_decode_rate:.2f} t/s")
 
-        # ========== CSV 导出 ==========
-        try:
-            import csv
-
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            csv_filename = f"api_performance_{timestamp}.csv"
-
-            fieldnames = [
-                "InputLen",
-                "TTFT_ms",
-                "PrefillRate_tok_s",
-                "OutputLen",
-                "TPOT_ms",
-                "DecodeRate_tok_s",
-                "Total_ms",
-                "PromptTokens",
-                "FixedPromptTokens",
-                "GeneratedWords",
-            ]
-
-            # with open(csv_filename, "w", newline="", encoding="utf-8") as f:
-            #     writer = csv.DictWriter(f, fieldnames=fieldnames)
-            #     writer.writeheader()
-
-            #     for r in results:
-            #         writer.writerow({
-            #             "InputLen": r["input_len"],
-            #             "TTFT_ms": r["prefill_ms"],
-            #             "PrefillRate_tok_s": r["prefill_speed"],
-            #             "OutputLen": r["output_len"],
-            #             "TPOT_ms": r["decode_ms"],
-            #             "DecodeRate_tok_s": r["decode_speed"],
-            #             "Total_ms": r["total_ms"],
-            #             "PromptTokens": r["prompt_tokens"],
-            #             "FixedPromptTokens": r["fixed_prompt_tokens"],
-            #             "GeneratedWords": r["generated_words"]
-            #         })
-
-            # print(f"\n结果已保存: {csv_filename}")
-        except Exception as e:
-            print(f"CSV 保存失败: {e}")
+    print("=" * 80)
+    print(f"🔗 项目地址：https://github.com/344303947/LlmTestTools")
+    print(f"⭐ 如果有帮助，请给个 Star!")
+    print("=" * 80)
 
 
 if __name__ == "__main__":
