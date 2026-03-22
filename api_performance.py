@@ -9,8 +9,13 @@ import sys
 import json
 import random
 import tiktoken
+import io
 from datetime import datetime
 from typing import List, Dict, Optional, Generator
+
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 API_URL = "http://192.168.0.32:9070/v1/chat/completions"
 API_KEY = "sk_344303"
@@ -71,7 +76,16 @@ def stream_response(prompt: str, max_tokens: int) -> Generator[Dict, None, None]
         )
 
         if response.status_code != 200:
-            raise Exception(f"HTTP {response.status_code}: {response.text}")
+            try:
+                error_data = response.json()
+                error_msg = error_data.get("error", {})
+                if isinstance(error_msg, dict):
+                    error_detail = error_msg.get("message", response.text)
+                else:
+                    error_detail = str(error_msg)
+            except (json.JSONDecodeError, ValueError):
+                error_detail = response.text
+            raise Exception(f"HTTP {response.status_code}: {error_detail}")
 
         for line in response.iter_lines():
             if line:
@@ -107,16 +121,19 @@ def test_stream_prompt(input_len: int, output_len: int) -> Optional[Dict]:
         last_token_time: float | None = None
         token_count = 0
 
+        generated_content = ""
         for chunk in stream_response(prompt, output_len):
             if "choices" in chunk and len(chunk["choices"]) > 0:
                 delta = chunk["choices"][0].get("delta", {})
                 content = delta.get("content") or delta.get("reasoning")
                 if content:
-                    token_count += 1
-
+                    generated_content += content
                     if first_token_time is None:
                         first_token_time = time.time()
                     last_token_time = time.time()
+
+        if generated_content:
+            token_count = len(enc.encode(generated_content))
 
         if token_count == 0 or first_token_time is None or last_token_time is None:
             raise Exception("No tokens received")
